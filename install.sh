@@ -133,12 +133,6 @@ RELEASE_RESPONSE=$($FETCH "$RELEASE_URL" 2>/dev/null) || true
 
 FILE_PATTERN="linux-$ARCH_SUFFIX.tar.gz"
 
-case "$variant_choice" in
-    1) FILE_PATTERN="linux-$ARCH_SUFFIX.tar.gz" ;;
-    2) FILE_PATTERN="linux-$ARCH_SUFFIX-compressed.tar.gz" ;;
-    *) fail "Неверный выбор варианта." ;;
-esac
-
 DOWNLOAD_URL=$(echo "$RELEASE_RESPONSE" \
   | tr ',' '\n' \
   | grep "browser_download_url" \
