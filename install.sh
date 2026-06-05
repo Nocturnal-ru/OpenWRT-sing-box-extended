@@ -148,12 +148,19 @@ sync
 echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
 
 FREE_RAM_KB=$(awk '/MemFree/ {print $2}' /proc/meminfo)
+FREE_RAM_MB=$((FREE_RAM_KB / 1024))
 
-if [ "$FREE_RAM_KB" -gt 81920 ]; then
-    WORK_DIR="/tmp/sing-box-install"
-else
-    WORK_DIR="$HOME/sing-box-install_tmp"
-fi
+printf "\n${C}[?] Куда скачивать и распаковывать?${N}\n"
+printf "  ${Y}1)${N} /tmp        (RAM,   свободно: ~%d МБ)\n" "$FREE_RAM_MB"
+printf "  ${Y}2)${N} $HOME (flash/overlay)\n"
+printf "${C}[?] Выберите (1-2): ${N}"
+read -r loc_choice
+
+case "$loc_choice" in
+    1) WORK_DIR="/tmp/sing-box-install" ;;
+    2) WORK_DIR="$HOME/sing-box-install_tmp" ;;
+    *) fail "Неверный выбор места установки." ;;
+esac
 
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
