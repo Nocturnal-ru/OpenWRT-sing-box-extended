@@ -20,11 +20,11 @@ fail() {
 }
 
 if command -v curl >/dev/null 2>&1; then
-    FETCH="curl -fsSL --insecure --connect-timeout 15"
-    DOWNLOAD="curl -fsSL --insecure --connect-timeout 15 -o"
+    FETCH="curl -fsSL --insecure --connect-timeout 28"
+    DOWNLOAD="curl -fsSL --insecure --connect-timeout 28 -o"
 elif command -v wget >/dev/null 2>&1; then
-    FETCH="wget -qO- --no-check-certificate --timeout=15"
-    DOWNLOAD="wget -q --no-check-certificate --timeout=15 -O"
+    FETCH="wget -qO- --no-check-certificate --timeout=28"
+    DOWNLOAD="wget -q --no-check-certificate --timeout=28 -O"
 else
     printf "${R}[!] ОШИБКА: Не найден curl или wget.${N}\n"
     exit 1
