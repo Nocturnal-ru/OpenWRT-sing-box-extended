@@ -82,7 +82,7 @@ RELEASES=$(echo "$API_RESPONSE" \
   | grep -v -i "rc" \
   | grep -v -i "beta" \
   | grep -v -i "alpha" \
-  | head -n 5)
+  | head -n 10)
 
 if [ -z "$RELEASES" ]; then
     fail "Не удалось получить список стабильных релизов из API."
