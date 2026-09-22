@@ -3,6 +3,7 @@
 API_URL="https://api.github.com/repos/shtorm-7/sing-box-extended/releases?per_page=30"
 ARCHIVE_NAME="sing-box-latest.tar.gz"
 DEST_FILE="/usr/bin/sing-box"
+START_TIMEOUT=90
 
 R="\033[1;31m"
 G="\033[1;32m"
@@ -47,6 +48,23 @@ rollback_and_fail() {
     fi
 
     exit 1
+}
+
+keep_new_for_diagnostics() {
+    rm -f "$WORK_DIR/$ARCHIVE_NAME"
+    INSTALL_IN_PROGRESS=""
+    SERVICE_STOPPED=""
+
+    printf "${Y}[!] Автоматический rollback отменён пользователем.${N}\n"
+    printf "${Y}[!] Новая версия оставлена для ручной диагностики.${N}\n"
+    printf "${Y}[!] Rollback-копия сохранена до перезагрузки роутера: %s${N}\n" "$BACKUP_FILE"
+    printf "${C}[*] Для ручного отката выполните:${N}\n"
+    printf "  service %s stop\n" "$SERVICE_NAME"
+    printf "  rm -f %s\n" "$DEST_FILE"
+    printf "  gzip -dc %s > %s\n" "$BACKUP_FILE" "$DEST_FILE"
+    printf "  chmod 0755 %s\n" "$DEST_FILE"
+    printf "  service %s start\n" "$SERVICE_NAME"
+    exit 2
 }
 
 fail() {
@@ -305,9 +323,47 @@ if ! service "$SERVICE_NAME" start; then
 fi
 SERVICE_STOPPED=""
 
-sleep 3
-if [ "$WAS_RUNNING" = "1" ] && ! pidof sing-box >/dev/null 2>&1; then
-    rollback_and_fail "Процесс sing-box не появился после запуска $SERVICE_NAME."
+if [ "$WAS_RUNNING" = "1" ]; then
+    printf "${C}[*] Ожидаю появления процесса sing-box до %d секунд...${N}\n" "$START_TIMEOUT"
+    printf "${Y}[?] Чтобы НЕ выполнять автооткат и оставить новую версию для диагностики,${N}\n"
+    printf "${Y}    введите n и нажмите Enter в течение этого времени.${N}\n"
+
+    START_TIME=$(date +%s)
+    LAST_REMAINING=""
+
+    while ! pidof sing-box >/dev/null 2>&1; do
+        NOW=$(date +%s)
+        ELAPSED=$((NOW - START_TIME))
+        REMAINING=$((START_TIMEOUT - ELAPSED))
+
+        if [ "$REMAINING" -le 0 ]; then
+            printf "\n"
+            rollback_and_fail "Процесс sing-box не появился за $START_TIMEOUT секунд."
+        fi
+
+        if [ "$REMAINING" != "$LAST_REMAINING" ]; then
+            printf "\r${C}[*] До автоматического отката: %d сек. ${N}" "$REMAINING"
+            LAST_REMAINING="$REMAINING"
+        fi
+
+        KEEP_CHOICE=""
+        if read -r -t 1 KEEP_CHOICE 2>/dev/null; then
+            case "$KEEP_CHOICE" in
+                n | N | 2 | no | NO | No | нет | Нет | НЕТ)
+                    printf "\n"
+                    keep_new_for_diagnostics
+                    ;;
+                *)
+                    printf "\n${Y}[!] Неизвестный ответ. Для отмены автоотката введите n.${N}\n"
+                    ;;
+            esac
+        else
+            AFTER_READ=$(date +%s)
+            [ "$AFTER_READ" = "$NOW" ] && sleep 1
+        fi
+    done
+
+    printf "\n${G}[+] Процесс sing-box успешно запущен.${N}\n"
 fi
 
 INSTALL_IN_PROGRESS=""
