@@ -7,6 +7,8 @@ SOURCE_NAME=""
 ARCHIVE_NAME="sing-box-latest.tar.gz"
 DEST_FILE="/usr/bin/sing-box"
 START_TIMEOUT=90
+API_RETRIES=3
+API_RETRY_DELAY=2
 
 R="\033[1;31m"
 G="\033[1;32m"
@@ -104,12 +106,54 @@ if command -v curl >/dev/null 2>&1; then
     FETCH="curl -fsSL --insecure --connect-timeout 60"
     DOWNLOAD="curl -fsSL --insecure --connect-timeout 60 -o"
 elif command -v wget >/dev/null 2>&1; then
-    FETCH="wget -qO- --no-check-certificate --timeout=60"
+    FETCH="wget -O- --no-check-certificate --timeout=60"
     DOWNLOAD="wget -q --no-check-certificate --timeout=60 -O"
 else
     printf "${R}[!] ОШИБКА: Не найден curl или wget.${N}\n"
     exit 1
 fi
+
+fetch_api() {
+    FETCH_URL="$1"
+    FETCH_LABEL="$2"
+    FETCH_ATTEMPT=1
+    FETCH_ERROR_FILE="/tmp/sing-box-api-error.$"
+
+    while [ "$FETCH_ATTEMPT" -le "$API_RETRIES" ]; do
+        : > "$FETCH_ERROR_FILE"
+
+        FETCH_BODY=$($FETCH "$FETCH_URL" 2>"$FETCH_ERROR_FILE")
+        FETCH_RC=$?
+
+        if [ "$FETCH_RC" -eq 0 ] && [ -n "$FETCH_BODY" ]; then
+            rm -f "$FETCH_ERROR_FILE"
+            printf "%s" "$FETCH_BODY"
+            return 0
+        fi
+
+        printf "${Y}[!] %s: попытка %d/%d не удалась.${N}\n" \
+            "$FETCH_LABEL" "$FETCH_ATTEMPT" "$API_RETRIES" >&2
+
+        if [ -s "$FETCH_ERROR_FILE" ]; then
+            sed 's/^/    /' "$FETCH_ERROR_FILE" >&2
+        elif [ "$FETCH_RC" -ne 0 ]; then
+            printf "    Код завершения HTTP-клиента: %d\n" "$FETCH_RC" >&2
+        else
+            printf "    GitHub API вернул пустой ответ.\n" >&2
+        fi
+
+        rm -f "$FETCH_ERROR_FILE"
+
+        if [ "$FETCH_ATTEMPT" -lt "$API_RETRIES" ]; then
+            printf "${C}[*] Повтор через %d сек...${N}\n" "$API_RETRY_DELAY" >&2
+            sleep "$API_RETRY_DELAY"
+        fi
+
+        FETCH_ATTEMPT=$((FETCH_ATTEMPT + 1))
+    done
+
+    return 1
+}
 
 if [ -f "/opt/etc/init.d/podkop" ] || [ -f "/etc/init.d/podkop" ]; then
     SERVICE_NAME="podkop"
@@ -178,10 +222,9 @@ API_URL="https://api.github.com/repos/$REPO/releases?per_page=30"
 
 printf "${G}[*] Источник: ${Y}%s${G} (%s)${N}\n" "$SOURCE_NAME" "$REPO"
 printf "${C}[*] Получаю список последних версий...${N}\n"
-API_RESPONSE=$($FETCH "$API_URL" 2>/dev/null) || true
 
-if [ -z "$API_RESPONSE" ]; then
-    fail "Не удалось подключиться к GitHub API. Проверьте соединение."
+if ! API_RESPONSE=$(fetch_api "$API_URL" "Получение списка релизов"); then
+    fail "Не удалось получить список релизов из GitHub API после $API_RETRIES попыток."
 fi
 
 RELEASES=$(echo "$API_RESPONSE" \
@@ -238,7 +281,10 @@ fi
 printf "${C}[*] Ищу ссылку на скачивание для версии $SELECTED_TAG...${N}\n"
 
 RELEASE_URL="https://api.github.com/repos/$REPO/releases/tags/$SELECTED_TAG"
-RELEASE_RESPONSE=$($FETCH "$RELEASE_URL" 2>/dev/null) || true
+
+if ! RELEASE_RESPONSE=$(fetch_api "$RELEASE_URL" "Получение данных релиза $SELECTED_TAG"); then
+    fail "Не удалось получить данные релиза $SELECTED_TAG из GitHub API после $API_RETRIES попыток."
+fi
 
 FILE_PATTERN="linux-$ARCH_SUFFIX.tar.gz"
 
