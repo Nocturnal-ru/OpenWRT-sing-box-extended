@@ -1,6 +1,9 @@
 #!/bin/sh
 
-API_URL="https://api.github.com/repos/shtorm-7/sing-box-extended/releases?per_page=30"
+DEFAULT_REPO="shtorm-7/sing-box-extended"
+LITE_REPO="MANCrimSon/sing-box-extended-lite"
+REPO=""
+SOURCE_NAME=""
 ARCHIVE_NAME="sing-box-latest.tar.gz"
 DEST_FILE="/usr/bin/sing-box"
 START_TIMEOUT=90
@@ -146,6 +149,34 @@ if [ -f "$DEST_FILE" ]; then
     CURRENT_VER=$("$DEST_FILE" version 2>/dev/null | head -n 1 | awk '{print $NF}') || true
 fi
 
+printf "\n${C}[?] Выберите источник бинарника:${N}\n"
+printf "  ${Y}1)${N} sing-box extended (shtorm-7) [по умолчанию]\n"
+printf "  ${Y}2)${N} sing-box extended lite (MANCrimSon)\n"
+printf "  ${Y}0)${N} Отмена\n"
+printf "${C}[?] Выберите (1-2) [1]: ${N}"
+read -r source_choice
+
+case "$source_choice" in
+    "" | 1)
+        REPO="$DEFAULT_REPO"
+        SOURCE_NAME="sing-box extended"
+        ;;
+    2)
+        REPO="$LITE_REPO"
+        SOURCE_NAME="sing-box extended lite"
+        ;;
+    0)
+        printf "${G}[*] Установка отменена.${N}\n"
+        exit 0
+        ;;
+    *)
+        fail "Неверный выбор источника. Введите 1 или 2."
+        ;;
+esac
+
+API_URL="https://api.github.com/repos/$REPO/releases?per_page=30"
+
+printf "${G}[*] Источник: ${Y}%s${G} (%s)${N}\n" "$SOURCE_NAME" "$REPO"
 printf "${C}[*] Получаю список последних версий...${N}\n"
 API_RESPONSE=$($FETCH "$API_URL" 2>/dev/null) || true
 
@@ -206,7 +237,7 @@ fi
 
 printf "${C}[*] Ищу ссылку на скачивание для версии $SELECTED_TAG...${N}\n"
 
-RELEASE_URL="https://api.github.com/repos/shtorm-7/sing-box-extended/releases/tags/$SELECTED_TAG"
+RELEASE_URL="https://api.github.com/repos/$REPO/releases/tags/$SELECTED_TAG"
 RELEASE_RESPONSE=$($FETCH "$RELEASE_URL" 2>/dev/null) || true
 
 FILE_PATTERN="linux-$ARCH_SUFFIX.tar.gz"
@@ -371,4 +402,4 @@ cd /
 cleanup
 WORK_DIR=""
 
-printf "${G}[+] Готово: ${Y}${CURRENT_VER:-н/д}${G} -> ${Y}${NEW_VERSION}${N}\n"
+printf "${G}[+] Готово: ${Y}${CURRENT_VER:-н/д}${G} -> ${Y}${NEW_VERSION}${G} | Источник: ${Y}${SOURCE_NAME}${N}\n"
