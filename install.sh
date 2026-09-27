@@ -117,7 +117,7 @@ fetch_api() {
     FETCH_URL="$1"
     FETCH_LABEL="$2"
     FETCH_ATTEMPT=1
-    FETCH_ERROR_FILE="/tmp/sing-box-api-error.$"
+    FETCH_ERROR_FILE="/tmp/sing-box-api-error.tmp"
 
     while [ "$FETCH_ATTEMPT" -le "$API_RETRIES" ]; do
         : > "$FETCH_ERROR_FILE"
